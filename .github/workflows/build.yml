@@ -33,5 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-debug-APK
-          path: App/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          path: App/build/outputs/apk/debug/*.apk
