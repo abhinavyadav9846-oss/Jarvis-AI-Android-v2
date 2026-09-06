@@ -3,36 +3,45 @@ package com.abhinav.jarvis
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 class MainActivity : Activity() {
 
     private val backendUrl =
         "https://jarvis-ai-android-v2.onrender.com/chat"
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 48, 32, 24)
-            setBackgroundColor(Color.rgb(8, 12, 20))
-        }
+        // ---------- MAIN SCREEN ----------
 
-        val title = TextView(this).apply {
-            text = "JARVIS"
-            textSize = 34f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-        }
+        val root = LinearLayout(this)
+
+        root.orientation = LinearLayout.VERTICAL
+        root.setPadding(32, 48, 32, 24)
+        root.setBackgroundColor(Color.rgb(8, 12, 20))
+
+        // Title
+        val title = TextView(this)
+
+        title.text = "JARVIS"
+        title.textSize = 34f
+        title.setTextColor(Color.WHITE)
+        title.gravity = Gravity.CENTER
 
         root.addView(
             title,
@@ -42,12 +51,30 @@ class MainActivity : Activity() {
             )
         )
 
-        val chat = TextView(this).apply {
-            text = "Hello Abhinav!\n\nHow can I help you?"
-            textSize = 22f
-            setTextColor(Color.WHITE)
-            setPadding(0, 24, 0, 24)
-        }
+        // Status
+        val status = TextView(this)
+
+        status.text = "● ONLINE"
+        status.textSize = 14f
+        status.setTextColor(Color.rgb(80, 220, 150))
+        status.gravity = Gravity.CENTER
+        status.setPadding(0, 10, 0, 25)
+
+        root.addView(
+            status,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        // Chat area
+        val chat = TextView(this)
+
+        chat.text = "Hello Abhinav!\n\nHow can I help you?"
+        chat.textSize = 21f
+        chat.setTextColor(Color.WHITE)
+        chat.setPadding(0, 25, 0, 25)
 
         root.addView(
             chat,
@@ -58,39 +85,46 @@ class MainActivity : Activity() {
             )
         )
 
-        val inputRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        // Input
+        val input = EditText(this)
 
-        val input = EditText(this).apply {
-            hint = "Ask JARVIS..."
-            textSize = 16f
-            setSingleLine(true)
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            setPadding(20, 16, 20, 16)
-            setBackgroundColor(Color.rgb(28, 35, 48))
-        }
+        input.hint = "Ask JARVIS..."
+        input.textSize = 16f
+        input.setSingleLine(true)
+        input.setTextColor(Color.WHITE)
+        input.setHintTextColor(Color.GRAY)
+        input.setPadding(20, 15, 20, 15)
+        input.setBackgroundColor(Color.rgb(28, 35, 48))
 
-        inputRow.addView(
+        root.addView(
             input,
             LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
 
-        val sendButton = Button(this).apply {
-            text = "SEND"
-        }
+        // Send button
+        val sendButton = Button(this)
+
+        sendButton.text = "SEND"
+
+        root.addView(
+            sendButton,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        // ---------- SEND ----------
 
         sendButton.setOnClickListener {
 
             val message = input.text.toString().trim()
 
             if (message.isEmpty()) {
+                chat.text = "Please type something first."
                 return@setOnClickListener
             }
 
@@ -112,13 +146,13 @@ class MainActivity : Activity() {
                         url.openConnection() as HttpURLConnection
 
                     connection.requestMethod = "POST"
-                    connection.connectTimeout = 30000
+                    connection.connectTimeout = 20000
                     connection.readTimeout = 60000
                     connection.doOutput = true
 
                     connection.setRequestProperty(
                         "Content-Type",
-                        "application/json; charset=UTF-8"
+                        "application/json"
                     )
 
                     connection.setRequestProperty(
@@ -127,35 +161,48 @@ class MainActivity : Activity() {
                     )
 
                     val request =
-                        JSONObject().apply {
-                            put("message", message)
-                        }
+                        JSONObject()
 
-                    connection.outputStream.use { stream ->
-                        stream.write(
-                            request.toString()
+                    request.put(
+                        "message",
+                        message
+                    )
+
+                    connection.outputStream.use { output ->
+
+                        output.write(
+                            request
+                                .toString()
                                 .toByteArray(Charsets.UTF_8)
                         )
+
+                        output.flush()
                     }
 
-                    val code = connection.responseCode
+                    val responseCode =
+                        connection.responseCode
 
                     val stream =
-                        if (code in 200..299) {
+                        if (responseCode in 200..299) {
                             connection.inputStream
                         } else {
                             connection.errorStream
                         }
 
-                    val response =
-                        stream?.bufferedReader()?.use {
-                            it.readText()
-                        } ?: ""
+                    val reader =
+                        BufferedReader(
+                            InputStreamReader(stream)
+                        )
 
-                    if (code in 200..299) {
+                    val responseText =
+                        reader.use {
+                            it.readText()
+                        }
+
+                    if (responseCode in 200..299) {
 
                         val json =
-                            JSONObject(response)
+                            JSONObject(responseText)
 
                         val reply =
                             json.optString(
@@ -163,7 +210,7 @@ class MainActivity : Activity() {
                                 "No reply received."
                             )
 
-                        runOnUiThread {
+                        mainHandler.post {
 
                             chat.text =
                                 "You: $message\n\n" +
@@ -175,11 +222,12 @@ class MainActivity : Activity() {
 
                     } else {
 
-                        runOnUiThread {
+                        mainHandler.post {
 
                             chat.text =
                                 "You: $message\n\n" +
-                                "JARVIS: Server error ($code)"
+                                "JARVIS: Server error\n" +
+                                "HTTP $responseCode"
 
                             sendButton.isEnabled = true
                             input.isEnabled = true
@@ -188,7 +236,7 @@ class MainActivity : Activity() {
 
                 } catch (e: Exception) {
 
-                    runOnUiThread {
+                    mainHandler.post {
 
                         chat.text =
                             "You: $message\n\n" +
@@ -209,22 +257,14 @@ class MainActivity : Activity() {
             input.text.clear()
         }
 
-        inputRow.addView(
-            sendButton,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        root.addView(
-            inputRow,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
+        // ---------- SHOW APP ----------
 
         setContentView(root)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        mainHandler.removeCallbacksAndMessages(null)
     }
 }
