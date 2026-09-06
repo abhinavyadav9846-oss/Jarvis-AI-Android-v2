@@ -9,8 +9,14 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : Activity() {
+
+    private val backendUrl =
+        "https://jarvis-ai-android-v2.onrender.com/chat"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,19 +107,27 @@ class MainActivity : Activity() {
         // Send button
         val sendButton = Button(this).apply {
             text = "SEND"
+        }
 
-            setOnClickListener {
-                val message = input.text.toString().trim()
+        sendButton.setOnClickListener {
 
-                if (message.isNotEmpty()) {
+            val message = input.text.toString().trim()
 
-                    chat.text =
-                        "You: $message\n\n" +
-                        "JARVIS: Message received.\n\n" +
-                        "AI brain will be connected next."
+            if (message.isNotEmpty()) {
 
-                    input.text.clear()
-                }
+                chat.text =
+                    "You: $message\n\n" +
+                    "JARVIS: Thinking..."
+
+                sendButton.isEnabled = false
+
+                sendMessageToBackend(
+                    message,
+                    chat,
+                    sendButton
+                )
+
+                input.text.clear()
             }
         }
 
@@ -135,5 +149,125 @@ class MainActivity : Activity() {
 
         // Show screen
         setContentView(root)
+    }
+
+    private fun sendMessageToBackend(
+        message: String,
+        chat: TextView,
+        sendButton: Button
+    ) {
+
+        Thread {
+
+            var connection: HttpURLConnection? = null
+
+            try {
+
+                val url = URL(backendUrl)
+
+                connection =
+                    url.openConnection() as HttpURLConnection
+
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 30000
+                connection.readTimeout = 60000
+
+                connection.setRequestProperty(
+                    "Content-Type",
+                    "application/json"
+                )
+
+                connection.setRequestProperty(
+                    "Accept",
+                    "application/json"
+                )
+
+                connection.doOutput = true
+
+                // Request JSON
+                val jsonRequest = JSONObject()
+
+                jsonRequest.put(
+                    "message",
+                    message
+                )
+
+                // Send request
+                connection.outputStream.use { outputStream ->
+
+                    outputStream.write(
+                        jsonRequest
+                            .toString()
+                            .toByteArray(Charsets.UTF_8)
+                    )
+                }
+
+                val responseCode =
+                    connection.responseCode
+
+                val responseStream =
+                    if (responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream
+                    }
+
+                val responseText =
+                    responseStream
+                        ?.bufferedReader()
+                        ?.use { it.readText() }
+                        ?: ""
+
+                if (responseCode in 200..299) {
+
+                    val jsonResponse =
+                        JSONObject(responseText)
+
+                    val reply =
+                        jsonResponse.optString(
+                            "reply",
+                            "JARVIS received an empty response."
+                        )
+
+                    runOnUiThread {
+
+                        chat.text =
+                            "You: $message\n\n" +
+                            "JARVIS: $reply"
+
+                        sendButton.isEnabled = true
+                    }
+
+                } else {
+
+                    runOnUiThread {
+
+                        chat.text =
+                            "You: $message\n\n" +
+                            "JARVIS: Backend error.\n\n" +
+                            "HTTP $responseCode"
+
+                        sendButton.isEnabled = true
+                    }
+                }
+
+            } catch (e: Exception) {
+
+                runOnUiThread {
+
+                    chat.text =
+                        "You: $message\n\n" +
+                        "JARVIS: Connection failed.\n\n" +
+                        "${e.message}"
+
+                    sendButton.isEnabled = true
+                }
+
+            } finally {
+
+                connection?.disconnect()
+            }
+
+        }.start()
     }
 }
