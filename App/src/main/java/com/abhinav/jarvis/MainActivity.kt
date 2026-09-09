@@ -107,7 +107,7 @@ class MainActivity : Activity() {
         inputText.background = inputBackground
 
         micButton = Button(this)
-        micButton.text = "🎤"
+        micButton.text = "MIC"
         micButton.textSize = 18f
         micButton.setTextColor(Color.BLACK)
 
@@ -252,7 +252,7 @@ class MainActivity : Activity() {
 
                 handler.post {
 
-                    micButton.text = "🎤"
+                    micButton.text = "MIC"
 
                     val matches =
                         results?.getStringArrayList(
@@ -308,8 +308,8 @@ class MainActivity : Activity() {
             return
         }
 
-        micButton.text = "🔴"
-
+        
+micButton.text = "MIC"
         speechRecognizer.startListening(speechIntent)
     }
 
