@@ -1,12 +1,20 @@
 package com.abhinav.jarvis
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -15,6 +23,7 @@ import android.widget.TextView
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
@@ -29,9 +38,22 @@ class MainActivity : Activity() {
     private lateinit var scrollView: ScrollView
     private lateinit var inputText: EditText
     private lateinit var sendButton: Button
+    private lateinit var micButton: Button
+
+    private lateinit var speechRecognizer: SpeechRecognizer
+    private lateinit var speechIntent: Intent
+    private lateinit var textToSpeech: TextToSpeech
+
+    private val microphonePermissionCode = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        setupSpeech()
+        setupUI()
+    }
+
+    private fun setupUI() {
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -43,10 +65,10 @@ class MainActivity : Activity() {
         title.textSize = 30f
         title.setTextColor(Color.WHITE)
         title.gravity = Gravity.CENTER
-        title.setPadding(0, 8, 0, 2)
+        title.setPadding(0, 0, 0, 2)
 
         val status = TextView(this)
-        status.text = "● ONLINE"
+        status.text = "• ONLINE"
         status.textSize = 13f
         status.setTextColor(Color.rgb(0, 220, 180))
         status.gravity = Gravity.CENTER
@@ -63,7 +85,7 @@ class MainActivity : Activity() {
 
         addMessage(
             "JARVIS",
-            "Hello Abhinav! 👋\n\nI am ready. Ask me anything."
+            "Hello Abhinav! 👋\nI am ready. Ask me anything."
         )
 
         val bottom = LinearLayout(this)
@@ -84,6 +106,16 @@ class MainActivity : Activity() {
         inputBackground.cornerRadius = 50f
         inputText.background = inputBackground
 
+        micButton = Button(this)
+        micButton.text = "🎤"
+        micButton.textSize = 18f
+        micButton.setTextColor(Color.BLACK)
+
+        val micBackground = GradientDrawable()
+        micBackground.setColor(Color.rgb(0, 220, 180))
+        micBackground.cornerRadius = 50f
+        micButton.background = micBackground
+
         sendButton = Button(this)
         sendButton.text = "SEND"
         sendButton.textSize = 14f
@@ -103,16 +135,23 @@ class MainActivity : Activity() {
             )
         )
 
+        val micParams = LinearLayout.LayoutParams(
+            58,
+            58
+        )
+        micParams.setMargins(8, 0, 0, 0)
+
+        bottom.addView(micButton, micParams)
+
         val buttonParams = LinearLayout.LayoutParams(
             110,
             58
         )
-        buttonParams.setMargins(10, 0, 0, 0)
+        buttonParams.setMargins(8, 0, 0, 0)
 
         bottom.addView(sendButton, buttonParams)
 
         root.addView(title)
-
         root.addView(status)
 
         root.addView(
@@ -131,9 +170,184 @@ class MainActivity : Activity() {
         sendButton.setOnClickListener {
             sendMessage()
         }
+
+        micButton.setOnClickListener {
+            startVoiceInput()
+        }
     }
 
-    private fun addMessage(sender: String, message: String) {
+    private fun setupSpeech() {
+
+        speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE,
+                Locale.getDefault()
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_PARTIAL_RESULTS,
+                false
+            )
+        }
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+
+            override fun onReadyForSpeech(params: Bundle?) {
+                handler.post {
+                    micButton.text = "🔴"
+                    addMessage("JARVIS", "Listening...")
+                }
+            }
+
+            override fun onBeginningOfSpeech() {
+            }
+
+            override fun onRmsChanged(rmsdB: Float) {
+            }
+
+            override fun onBufferReceived(buffer: ByteArray?) {
+            }
+
+            override fun onEndOfSpeech() {
+                handler.post {
+                    micButton.text = "🎤"
+                }
+            }
+
+            override fun onError(error: Int) {
+
+                handler.post {
+                    micButton.text = "🎤"
+
+                    val message = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO ->
+                            "Microphone audio error."
+
+                        SpeechRecognizer.ERROR_NETWORK ->
+                            "Voice network error."
+
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+                            "Voice network timeout."
+
+                        SpeechRecognizer.ERROR_NO_MATCH ->
+                            "I could not understand your voice."
+
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                            "I didn't hear anything."
+
+                        else ->
+                            "Voice input error. Please try again."
+                    }
+
+                    addMessage("JARVIS", message)
+                }
+            }
+
+            override fun onResults(results: Bundle?) {
+
+                handler.post {
+
+                    micButton.text = "🎤"
+
+                    val matches =
+                        results?.getStringArrayList(
+                            SpeechRecognizer.RESULTS_RECOGNITION
+                        )
+
+                    if (!matches.isNullOrEmpty()) {
+
+                        val spokenText = matches[0].trim()
+
+                        if (spokenText.isNotEmpty()) {
+
+                            inputText.setText(spokenText)
+
+                            sendMessage()
+                        }
+                    }
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {
+            }
+        })
+
+        textToSpeech = TextToSpeech(
+            this
+        ) { status ->
+
+            if (status == TextToSpeech.SUCCESS) {
+
+                textToSpeech.language = Locale.getDefault()
+
+                textToSpeech.setSpeechRate(0.95f)
+            }
+        }
+    }
+
+    private fun startVoiceInput() {
+
+        if (checkSelfPermission(
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                microphonePermissionCode
+            )
+
+            return
+        }
+
+        micButton.text = "🔴"
+
+        speechRecognizer.startListening(speechIntent)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (requestCode == microphonePermissionCode) {
+
+            if (
+                grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            ) {
+
+                startVoiceInput()
+
+            } else {
+
+                addMessage(
+                    "JARVIS",
+                    "Microphone permission is required for voice input."
+                )
+            }
+        }
+    }
+
+    private fun addMessage(
+        sender: String,
+        message: String
+    ) {
 
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
@@ -175,11 +389,19 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
 
-        bubbleParams.setMargins(0, 6, 0, 6)
+        bubbleParams.setMargins(
+            0,
+            6,
+            0,
+            6
+        )
 
         bubble.maxWidth = 850
 
-        row.addView(bubble, bubbleParams)
+        row.addView(
+            bubble,
+            bubbleParams
+        )
 
         chatContainer.addView(row)
 
@@ -192,17 +414,22 @@ class MainActivity : Activity() {
 
     private fun sendMessage() {
 
-        val message = inputText.text.toString().trim()
+        val message =
+            inputText.text.toString().trim()
 
         if (message.isEmpty()) {
             return
         }
 
-        addMessage("YOU", message)
+        addMessage(
+            "YOU",
+            message
+        )
 
         inputText.setText("")
 
         sendButton.isEnabled = false
+        micButton.isEnabled = false
 
         addMessage(
             "JARVIS",
@@ -290,7 +517,10 @@ class MainActivity : Activity() {
                         reply
                     )
 
+                    speakReply(reply)
+
                     sendButton.isEnabled = true
+                    micButton.isEnabled = true
                 }
 
             } catch (e: Exception) {
@@ -305,9 +535,30 @@ class MainActivity : Activity() {
                     )
 
                     sendButton.isEnabled = true
+                    micButton.isEnabled = true
                 }
             }
         }
+    }
+
+    private fun speakReply(reply: String) {
+
+        if (!::textToSpeech.isInitialized) {
+            return
+        }
+
+        if (reply.isBlank()) {
+            return
+        }
+
+        textToSpeech.stop()
+
+        textToSpeech.speak(
+            reply,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "JARVIS_REPLY"
+        )
     }
 
     private fun removeThinking() {
@@ -321,6 +572,15 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+
+        if (::speechRecognizer.isInitialized) {
+            speechRecognizer.destroy()
+        }
+
+        if (::textToSpeech.isInitialized) {
+            textToSpeech.stop()
+            textToSpeech.shutdown()
+        }
 
         executor.shutdownNow()
 
