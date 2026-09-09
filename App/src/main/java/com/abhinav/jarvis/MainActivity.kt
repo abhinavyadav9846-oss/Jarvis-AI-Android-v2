@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -23,7 +24,8 @@ class MainActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
 
-    private lateinit var chatText: TextView
+    private lateinit var chatContainer: LinearLayout
+    private lateinit var scrollView: ScrollView
     private lateinit var inputText: EditText
     private lateinit var sendButton: Button
 
@@ -32,7 +34,7 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
-        root.setPadding(25, 50, 25, 25)
+        root.setPadding(20, 35, 20, 20)
         root.setBackgroundColor(Color.rgb(8, 12, 20))
 
         val title = TextView(this)
@@ -40,31 +42,32 @@ class MainActivity : Activity() {
         title.textSize = 30f
         title.setTextColor(Color.WHITE)
         title.gravity = Gravity.CENTER
-        title.setPadding(0, 0, 0, 30)
+        title.setPadding(0, 10, 0, 25)
 
-        chatText = TextView(this)
-        chatText.text = "JARVIS:\nHello Abhinav! 👋\n\nAsk me anything..."
-        chatText.textSize = 18f
-        chatText.setTextColor(Color.WHITE)
-        chatText.setPadding(20, 20, 20, 20)
+        scrollView = ScrollView(this)
 
-        val scrollParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
+        chatContainer = LinearLayout(this)
+        chatContainer.orientation = LinearLayout.VERTICAL
+
+        scrollView.addView(chatContainer)
+
+        addMessage(
+            "JARVIS",
+            "Hello Abhinav! 👋\n\nI am ready. Ask me anything."
         )
+
+        val bottom = LinearLayout(this)
+        bottom.orientation = LinearLayout.HORIZONTAL
+        bottom.setPadding(0, 15, 0, 0)
 
         inputText = EditText(this)
         inputText.hint = "Type your message..."
         inputText.setTextColor(Color.WHITE)
         inputText.setHintTextColor(Color.GRAY)
-        inputText.setSingleLine(false)
+        inputText.setSingleLine(true)
 
         sendButton = Button(this)
         sendButton.text = "SEND"
-
-        val bottom = LinearLayout(this)
-        bottom.orientation = LinearLayout.HORIZONTAL
 
         bottom.addView(
             inputText,
@@ -84,13 +87,46 @@ class MainActivity : Activity() {
         )
 
         root.addView(title)
-        root.addView(chatText, scrollParams)
+
+        root.addView(
+            scrollView,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        )
+
         root.addView(bottom)
 
         setContentView(root)
 
         sendButton.setOnClickListener {
             sendMessage()
+        }
+    }
+
+    private fun addMessage(sender: String, message: String) {
+
+        val messageView = TextView(this)
+
+        messageView.text = "$sender:\n$message"
+        messageView.textSize = 18f
+        messageView.setTextColor(Color.WHITE)
+        messageView.setPadding(20, 15, 20, 15)
+
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        params.setMargins(0, 8, 0, 8)
+
+        messageView.layoutParams = params
+        chatContainer.addView(messageView)
+
+        scrollView.post {
+            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
         }
     }
 
@@ -102,18 +138,19 @@ class MainActivity : Activity() {
             return
         }
 
-        chatText.text =
-            chatText.text.toString() +
-            "\n\nYou:\n$message\n\nJARVIS:\nThinking..."
+        addMessage("YOU", message)
 
         inputText.setText("")
         sendButton.isEnabled = false
+
+        addMessage("JARVIS", "Thinking...")
 
         executor.execute {
 
             try {
                 val url = URL(backendUrl)
-                val connection = url.openConnection() as HttpURLConnection
+                val connection =
+                    url.openConnection() as HttpURLConnection
 
                 connection.requestMethod = "POST"
                 connection.setRequestProperty(
@@ -157,22 +194,31 @@ class MainActivity : Activity() {
                 }
 
                 handler.post {
-                    chatText.text =
-                        chatText.text.toString()
-                            .replace("Thinking...", reply)
 
+                    if (chatContainer.childCount > 0) {
+                        chatContainer.removeViewAt(
+                            chatContainer.childCount - 1
+                        )
+                    }
+
+                    addMessage("JARVIS", reply)
                     sendButton.isEnabled = true
                 }
 
             } catch (e: Exception) {
 
                 handler.post {
-                    chatText.text =
-                        chatText.text.toString()
-                            .replace(
-                                "Thinking...",
-                                "Connection error. Please try again."
-                            )
+
+                    if (chatContainer.childCount > 0) {
+                        chatContainer.removeViewAt(
+                            chatContainer.childCount - 1
+                        )
+                    }
+
+                    addMessage(
+                        "JARVIS",
+                        "Connection error. Please try again."
+                    )
 
                     sendButton.isEnabled = true
                 }
