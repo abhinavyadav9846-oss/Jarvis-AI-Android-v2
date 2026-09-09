@@ -199,7 +199,7 @@ class MainActivity : Activity() {
 
             override fun onReadyForSpeech(params: Bundle?) {
                 handler.post {
-                    micButton.text = "🔴"
+                    micButton.text = "MIC"
                     addMessage("JARVIS", "Listening...")
                 }
             }
@@ -215,14 +215,14 @@ class MainActivity : Activity() {
 
             override fun onEndOfSpeech() {
                 handler.post {
-                    micButton.text = "🎤"
+                    micButton.text = "MIC"
                 }
             }
 
             override fun onError(error: Int) {
 
                 handler.post {
-                    micButton.text = "🎤"
+                    micButton.text = "MIC"
 
                     val message = when (error) {
                         SpeechRecognizer.ERROR_AUDIO ->
