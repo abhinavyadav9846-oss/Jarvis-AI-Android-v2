@@ -110,7 +110,10 @@ class MainActivity : Activity() {
         micButton.text = "MIC"
         micButton.textSize = 18f
         micButton.setTextColor(Color.BLACK)
-
+        micButton.gravity = Gravity.CENTER
+        micButton.minWidth = 0
+        micButton.minHeight = 0
+        micButton.setAllCaps(false)
         val micBackground = GradientDrawable()
         micBackground.setColor(Color.rgb(0, 220, 180))
         micBackground.cornerRadius = 50f
